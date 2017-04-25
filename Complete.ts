@@ -34,6 +34,17 @@ class Connector {
      */
     public send(request: Request, callback: IConnectorCallback): void {
 
+        // @todo server is not implemented yet
+        let fakeData: any = {
+            data: {
+                1: 'hello',
+                2: 'kitty',
+                3: Math.random()
+            }
+        };
+        callback(new ResponseValid(fakeData));
+        return;
+
         // zpracuje se a odešle request
         $.ajax(this.serverUrl, {
             data: request,
@@ -113,9 +124,12 @@ class Controller {
             this.synchronizers.push(new SynchronizerAppendingFile(synchronizerConfig));
         }
     }
-    
+
     public start(): void {
-        
+
+        for (let synchronizer of this.synchronizers) {
+            synchronizer.synchronize();
+        }
     }
 }
 
@@ -151,7 +165,7 @@ class Response {
     }
 
     public getData() {
-        return this.data;
+        return this.data.data;
     }
 }
 
@@ -176,7 +190,7 @@ interface ISynchronizerConfig {
     urn: string;
 }
 
-abstract class Synchronizer {
+abstract class Synchronizer implements ITimerTickable {
 
     protected connector: Connector;
     protected data: any;
@@ -193,13 +207,15 @@ abstract class Synchronizer {
         this.period = config.period;
         this.urn = config.urn;
 
-        this.timer = new Timer(this.synchronize, this.period);
+        this.timer = new Timer(this, this.period);
         this.request = new Request(ERange.RANGE_ALL, this.urn);
     }
 
     //public abstract init() : Response;
 
     public abstract synchronize(): void;
+
+    public abstract tick(): void;
 }
 
 class SynchronizerAppendingFile extends Synchronizer {
@@ -208,26 +224,43 @@ class SynchronizerAppendingFile extends Synchronizer {
         super(config);
     }
 
-    public synchronize(): void { // : void?
+    public synchronize(): void { // @todo void?
+        if (this.timer.getState() !== ETimerStates.ticking) {
+            this.timer.restart();
+        }
+    }
 
+    public tick(): void {
         // když se něco vrátí, je potřeba zaznamenat poslední "ID" a dále synchronizovat až od něj
-        this.connector.send(this.request, this.processResponse);
         // @todo use promises?
+        this.connector.send(this.request, this.processResponse.bind(this));
     }
 
     private processResponse(response: Response): void {
 
-        if (typeof response === 'ResponseValid') {
+        if (response instanceof ResponseValid) {
             // zpracování [nových] zaslaných dat
-            console.log(response.getData());
-        } else if (typeof response === 'ResponseError') {
+            this.synchronizeData(response.getData());
+        } else if (response instanceof ResponseError) {
             // zpracování chyby
+            console.log('-- error returned --');
+
             //@todo asi nějaký interní try counter, který bude dokola zkoušet synchronize?
         } else {
             // da hell?
+            console.log('-- something is wrong--' + typeof response);
         }
     }
 
+    private synchronizeData(data: any) {
+        console.log('-- Synchronizing data --');
+
+        for (let lineNumber in data) {
+            this.data[lineNumber] = data[lineNumber];
+        }
+
+        $('#data').text(JSON.stringify(this.data));
+    }
 }
 
 // -- -- TIMER -- --
@@ -236,8 +269,8 @@ enum ETimerStates {
     stopped, ticking, paused
 }
 
-interface ITimerCallback {
-    (): void;
+interface ITimerTickable {
+    tick: () => void;
 }
 
 /**
@@ -249,7 +282,7 @@ class Timer {
     /**
      * Callback that will be called every tick.
      */
-    private callback: ITimerCallback;
+    private callback: ITimerTickable;
 
     /**
      * Given desired interval.
@@ -281,10 +314,14 @@ class Timer {
      */
     private state: ETimerStates = ETimerStates.stopped;
 
-    public constructor(callback: any, interval: number, timeoutFuse?: number) {
+    public constructor(callback: ITimerTickable, interval: number, timeoutFuse?: number) {
         this.callback = callback;
         this.interval = Math.abs(interval);
         this.timeoutFuse = Math.max(this.timeoutFuse, timeoutFuse | 0);
+    }
+
+    public getState(): ETimerStates {
+        return this.state;
     }
 
     /**
@@ -292,7 +329,7 @@ class Timer {
      */
     private tick(): void {
         this.cicle();
-        this.callback();
+        this.callback.tick();
     }
 
     /**

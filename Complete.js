@@ -20,6 +20,16 @@ var Connector = (function () {
      * @param Request request hi?
      */
     Connector.prototype.send = function (request, callback) {
+        // @todo server is not implemented yet
+        var fakeData = {
+            data: {
+                1: 'hello',
+                2: 'kitty',
+                3: Math.random()
+            }
+        };
+        callback(new ResponseValid(fakeData));
+        return;
         // zpracuje se a odešle request
         $.ajax(this.serverUrl, {
             data: request,
@@ -70,6 +80,10 @@ var Controller = (function () {
         }
     };
     Controller.prototype.start = function () {
+        for (var _i = 0, _a = this.synchronizers; _i < _a.length; _i++) {
+            var synchronizer = _a[_i];
+            synchronizer.synchronize();
+        }
     };
     return Controller;
 }());
@@ -91,7 +105,7 @@ var Response = (function () {
         this.data = data;
     }
     Response.prototype.getData = function () {
-        return this.data;
+        return this.data.data;
     };
     return Response;
 }());
@@ -116,7 +130,7 @@ var Synchronizer = (function () {
         this.data = config.data;
         this.period = config.period;
         this.urn = config.urn;
-        this.timer = new Timer(this.synchronize, this.period);
+        this.timer = new Timer(this, this.period);
         this.request = new Request(ERange.RANGE_ALL, this.urn);
     }
     return Synchronizer;
@@ -127,19 +141,35 @@ var SynchronizerAppendingFile = (function (_super) {
         return _super.call(this, config) || this;
     }
     SynchronizerAppendingFile.prototype.synchronize = function () {
+        if (this.timer.getState() !== ETimerStates.ticking) {
+            this.timer.restart();
+        }
+    };
+    SynchronizerAppendingFile.prototype.tick = function () {
         // když se něco vrátí, je potřeba zaznamenat poslední "ID" a dále synchronizovat až od něj
-        this.connector.send(this.request, this.processResponse);
         // @todo use promises?
+        this.connector.send(this.request, this.processResponse.bind(this));
     };
     SynchronizerAppendingFile.prototype.processResponse = function (response) {
-        if (typeof response === 'ResponseValid') {
+        if (response instanceof ResponseValid) {
             // zpracování [nových] zaslaných dat
-            console.log(response.getData());
+            this.synchronizeData(response.getData());
         }
-        else if (typeof response === 'ResponseError') {
+        else if (response instanceof ResponseError) {
+            // zpracování chyby
+            console.log('-- error returned --');
         }
         else {
+            // da hell?
+            console.log('-- something is wrong--' + typeof response);
         }
+    };
+    SynchronizerAppendingFile.prototype.synchronizeData = function (data) {
+        console.log('-- Synchronizing data --');
+        for (var lineNumber in data) {
+            this.data[lineNumber] = data[lineNumber];
+        }
+        $('#data').text(JSON.stringify(this.data));
     };
     return SynchronizerAppendingFile;
 }(Synchronizer));
@@ -176,12 +206,15 @@ var Timer = (function () {
         this.interval = Math.abs(interval);
         this.timeoutFuse = Math.max(this.timeoutFuse, timeoutFuse | 0);
     }
+    Timer.prototype.getState = function () {
+        return this.state;
+    };
     /**
      * Calls next cicle and callback.
      */
     Timer.prototype.tick = function () {
         this.cicle();
-        this.callback();
+        this.callback.tick();
     };
     /**
      * Callculates timestamp of next wanted tick and “timestamps”.
