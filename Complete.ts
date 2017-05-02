@@ -1,7 +1,6 @@
 "use strict";
 
 //import * as $ from "jquery";
-// php -S localhost:8000 -t C:\Users\Miroslav\Documents\NetBeansProjects\Tests\public_html
 
 // -- -- CONNECTOR -- --
 
@@ -35,7 +34,7 @@ class Connector {
     public send(request: Request, callback: IConnectorCallback): void {
 
         // @todo server is not implemented yet
-        let fakeData: any = {
+        /*let fakeData: any = {
             data: {
                 1: 'hello',
                 2: 'kitty',
@@ -43,11 +42,12 @@ class Connector {
             }
         };
         callback(new ResponseValid(fakeData));
-        return;
+        return;*/
 
         // zpracuje se a odešle request
         $.ajax(this.serverUrl, {
             data: request,
+            method: 'POST',
             success: function (data: any, textStatus: string, jqXHR: JQueryXHR) {
                 callback(new ResponseValid(data));
             },

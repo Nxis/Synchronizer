@@ -10,9 +10,9 @@ let setup = {
     synchronizers: [
         {
             server: 'local', // který server se má použít
-            urn: '/files/log1.log',
-            synchronizer: 'appendingFile', // logFile?
-            synchronizeInterval: 1000, // jak často se má synchronizovat / načítat
+            urn: '/fileAppending/log1.log',
+            synchronizer: 'appendingFile', // logFile? / obsaženo v URN?
+            synchronizeInterval: 3000, // jak často se má synchronizovat / načítat
             synchronizeBy: 'lineNumber', // pro file synchronizer bude výchozí hodnota?
             //preload: true,
             //preload: 3600

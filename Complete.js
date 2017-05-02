@@ -21,7 +21,7 @@ var Connector = (function () {
      */
     Connector.prototype.send = function (request, callback) {
         // @todo server is not implemented yet
-        var fakeData = {
+        /*let fakeData: any = {
             data: {
                 1: 'hello',
                 2: 'kitty',
@@ -29,10 +29,11 @@ var Connector = (function () {
             }
         };
         callback(new ResponseValid(fakeData));
-        return;
+        return;*/
         // zpracuje se a odešle request
         $.ajax(this.serverUrl, {
             data: request,
+            method: 'POST',
             success: function (data, textStatus, jqXHR) {
                 callback(new ResponseValid(data));
             },
